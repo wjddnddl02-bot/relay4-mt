@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4초 릴레이</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: one phone-width column on graph paper; sticker-style cards with hard ink shadows; giant display numerals carry every timer */
+:root{
+  --paper:#f6f8fb; --grid:#dde5f0; --ink:#16191f; --ink-soft:#5a6372; --card:#ffffff; --line:#16191f;
+  --hl:#ffe14a; --hl-ink:#16191f; --soju:#1d8a52; --soju-soft:#dcf1e5; --alarm:#e23d43; --muted:#e9eef5;
+  --display:"Black Han Sans","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#111915; --grid:#1b2721; --ink:#edf3ef; --ink-soft:#9db0a5; --card:#17221c; --line:#edf3ef;
+  --hl:#ffe14a; --hl-ink:#16191f; --soju:#4fc787; --soju-soft:#173628; --alarm:#ff6b70; --muted:#1f2c26; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#111915; --grid:#1b2721; --ink:#edf3ef; --ink-soft:#9db0a5; --card:#17221c; --line:#edf3ef;
+  --hl:#ffe14a; --hl-ink:#16191f; --soju:#4fc787; --soju-soft:#173628; --alarm:#ff6b70; --muted:#1f2c26; color-scheme:dark}
+
+html,body{height:100%; margin:0}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;
+  color:var(--ink); font-family:var(--body); font-size:16px; line-height:1.5;
+  -webkit-tap-highlight-color:transparent;
+}
+#app{max-width:560px; margin:0 auto; padding-inline:16px; padding-block:16px 32px; min-height:100%; display:flex; flex-direction:column; gap:18px}
+h1,h2,h3{font-family:var(--display); font-weight:400; margin:0; text-wrap:balance; letter-spacing:-0.01em}
+p{margin:0}
+button{font:inherit; color:inherit; cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px dashed var(--ink); outline-offset:3px}
+
+.btn{display:block; width:100%; border:2px solid var(--line); background:var(--hl); color:var(--hl-ink);
+  font-family:var(--display); font-size:22px; padding:15px 18px; box-shadow:4px 4px 0 var(--line); border-radius:6px;
+  transition:transform .08s, box-shadow .08s}
+.btn:active{transform:translate(3px,3px); box-shadow:1px 1px 0 var(--line)}
+.btn.ghost{background:transparent; color:var(--ink); box-shadow:none; font-family:var(--body); font-weight:700; font-size:16px; padding:12px}
+.btn.ghost:active{transform:none; background:var(--muted)}
+.btn.soju{background:var(--soju); color:#fff}
+.row{display:flex; gap:10px; flex-wrap:wrap}
+.row > *{flex:1 1 140px}
+
+.eyebrow{font-size:13px; font-weight:700; letter-spacing:.08em; color:var(--ink-soft)}
+.hint{font-size:14px; color:var(--ink-soft)}
+.card{background:var(--card); border:2px solid var(--line); border-radius:8px; padding:18px}
+
+/* setup */
+.hero{display:flex; flex-direction:column; gap:10px; padding-top:8px}
+.hero h1{font-size:clamp(48px,15vw,76px); line-height:.95}
+.hero h1 mark{background:linear-gradient(transparent 55%,var(--hl) 55%); color:inherit; padding:0 4px}
+.rules{margin:0; padding:0; list-style:none; display:grid; gap:8px; counter-reset:r}
+.rules li{counter-increment:r; display:grid; grid-template-columns:28px 1fr; gap:8px; align-items:start}
+.rules li::before{content:counter(r); font-family:var(--display); width:26px; height:26px; border:2px solid var(--line); border-radius:50%; display:grid; place-items:center; font-size:14px; line-height:1}
+.rules li.penalty::before{background:var(--soju); color:#fff; border-color:var(--soju)}
+.section-title{display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:10px}
+.section-title h3{font-size:20px}
+.teams{display:grid; gap:8px}
+.team-row{display:flex; gap:8px}
+.team-row input{flex:1; min-width:0; font:inherit; font-weight:700; padding:10px 12px; border:2px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink)}
+.icon-btn{width:46px; flex:0 0 46px; border:2px solid var(--line); border-radius:6px; background:transparent; font-size:20px; line-height:1}
+.icon-btn:disabled{opacity:.3; cursor:default}
+.settings{display:grid; gap:10px}
+.set-row{display:flex; justify-content:space-between; align-items:center; gap:10px}
+.stepper{display:flex; align-items:center; border:2px solid var(--line); border-radius:6px; overflow:hidden; flex:0 0 auto}
+.stepper button{width:40px; height:38px; border:0; background:var(--muted); font-size:20px}
+.stepper output{min-width:56px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums}
+
+/* in-game header */
+.topbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.chip{border:2px solid var(--line); border-radius:999px; padding:3px 12px; font-weight:700; font-size:14px; background:var(--card)}
+.chip.genre{background:var(--hl); color:var(--hl-ink)}
+.topbar .spacer{flex:1}
+.tiny-btn{border:2px solid var(--line); background:transparent; border-radius:6px; padding:4px 10px; font-size:13px; font-weight:700}
+.dots{display:flex; gap:5px; align-items:center}
+.dots i{width:12px; height:12px; border:2px solid var(--line); border-radius:50%}
+.dots i.pass{background:var(--hl)}
+.dots i.fail{background:var(--soju); border-color:var(--soju)}
+.dots i.now{outline:2px solid var(--ink); outline-offset:2px}
+.confirm{display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 12px; border:2px dashed var(--line); border-radius:6px}
+.confirm p{flex:1 1 180px; font-weight:700}
+
+/* genre roulette */
+.roulette{text-align:center; display:flex; flex-direction:column; gap:14px; align-items:center; padding-top:12px}
+.roulette .team-name{font-size:clamp(40px,12vw,60px)}
+.spin-card{width:100%; border:3px solid var(--line); border-radius:10px; background:var(--card); padding:28px 12px; box-shadow:6px 6px 0 var(--line); transform:rotate(-1.5deg)}
+.spin-card .name{font-family:var(--display); font-size:clamp(40px,13vw,64px); line-height:1.05}
+.spin-card.landed{background:var(--hl); color:var(--hl-ink); animation:land .35s cubic-bezier(.2,1.6,.4,1)}
+@keyframes land{from{transform:rotate(-1.5deg) scale(1.12)}to{transform:rotate(-1.5deg) scale(1)}}
+.spin-card .blurb{font-weight:700; margin-top:6px; min-height:1.5em}
+.used{display:flex; gap:6px; flex-wrap:wrap; justify-content:center}
+.used span{font-size:13px; padding:2px 8px; border:1.5px solid var(--ink-soft); color:var(--ink-soft); border-radius:999px; text-decoration:line-through}
+
+/* keyword */
+.warn{background:var(--ink); color:var(--paper); border-radius:6px; padding:10px 14px; font-weight:700; text-align:center}
+.keyword-card{border:3px solid var(--line); border-radius:10px; background:var(--card); padding:34px 18px; text-align:center; box-shadow:6px 6px 0 var(--line)}
+.keyword-card .k{font-family:var(--display); font-size:clamp(32px,9.5vw,50px); line-height:1.2; word-break:keep-all}
+
+/* drawing */
+.stage{display:flex; flex-direction:column; gap:16px; align-items:stretch; text-align:center}
+.mini-keyword{font-weight:700; padding:8px 12px; border:2px dashed var(--line); border-radius:6px; word-break:keep-all}
+.who{font-family:var(--display); font-size:clamp(28px,8vw,40px)}
+.big-num{font-family:var(--display); font-size:clamp(150px,48vw,240px); line-height:.9; font-variant-numeric:tabular-nums; transition:color .15s}
+.big-num.alarm{color:var(--alarm)}
+.pills{display:flex; gap:8px}
+.pill{flex:1; height:22px; border:2px solid var(--line); border-radius:999px; overflow:hidden; background:var(--card); position:relative}
+.pill > i{position:absolute; inset:0; background:var(--hl); transform-origin:left; transform:scaleX(0)}
+.pill.done > i{transform:scaleX(1)}
+.pill-labels{display:flex; gap:8px; font-size:13px; font-weight:700; color:var(--ink-soft)}
+.pill-labels span{flex:1}
+.handoff{font-family:var(--display); font-size:clamp(44px,14vw,72px); line-height:1.05; padding:40px 0}
+.handoff small{display:block; font-size:.45em; color:var(--ink-soft); margin-top:8px}
+.paused-note{font-weight:700; color:var(--alarm)}
+
+/* answer */
+.answer-head{display:flex; align-items:end; justify-content:space-between; gap:12px}
+.answer-head h2{font-size:clamp(26px,7.5vw,34px)}
+.answer-head .num{font-family:var(--display); font-size:64px; line-height:.85; font-variant-numeric:tabular-nums}
+.answer-head .num.alarm{color:var(--alarm)}
+.bar{height:12px; border:2px solid var(--line); border-radius:999px; overflow:hidden; background:var(--card)}
+.bar > i{display:block; height:100%; background:var(--ink); transform-origin:left}
+.bar.alarm > i{background:var(--alarm)}
+.options{display:grid; gap:10px}
+.opt{display:grid; grid-template-columns:40px 1fr; gap:12px; align-items:center; text-align:left; border:2px solid var(--line); border-radius:8px; background:var(--card); padding:14px; min-height:68px; box-shadow:3px 3px 0 var(--line); transition:transform .08s, box-shadow .08s}
+.opt:active{transform:translate(2px,2px); box-shadow:1px 1px 0 var(--line)}
+.opt b{font-family:var(--display); font-weight:400; width:36px; height:36px; border-radius:50%; border:2px solid var(--line); display:grid; place-items:center; font-size:18px}
+.opt span{font-weight:700; font-size:18px; line-height:1.35; word-break:keep-all; min-width:0}
+.opt.correct{background:var(--hl); color:var(--hl-ink)}
+.opt.wrong{background:var(--soju-soft); text-decoration:line-through}
+.opt:disabled{cursor:default}
+
+/* result */
+.result{display:flex; flex-direction:column; gap:18px; align-items:center; text-align:center; padding-top:8px}
+.stamp{font-family:var(--display); font-size:clamp(64px,20vw,104px); line-height:1; padding:10px 26px; border:6px solid currentColor; border-radius:12px; transform:rotate(-6deg); animation:stamp .4s cubic-bezier(.2,1.5,.4,1)}
+.stamp.pass{background:var(--hl); color:var(--hl-ink); border-color:var(--line)}
+.stamp.fail{color:var(--soju)}
+@keyframes stamp{from{transform:rotate(-6deg) scale(1.8); opacity:0}to{transform:rotate(-6deg) scale(1); opacity:1}}
+.result .verdict{font-family:var(--display); font-size:clamp(26px,7.5vw,36px)}
+.answer-reveal{width:100%; text-align:left; display:grid; gap:6px}
+.answer-reveal .line{display:grid; grid-template-columns:64px 1fr; gap:8px; align-items:baseline}
+.answer-reveal .line em{font-style:normal; font-size:13px; font-weight:700; color:var(--ink-soft)}
+.answer-reveal .line strong{word-break:keep-all}
+.bottles{display:flex; gap:6px; justify-content:center; flex-wrap:wrap}
+.bottle{width:22px; height:62px; position:relative}
+.bottle::before{content:""; position:absolute; left:7px; top:0; width:8px; height:18px; background:var(--soju); border-radius:2px 2px 0 0}
+.bottle::after{content:""; position:absolute; left:0; top:14px; width:22px; height:48px; background:var(--soju); border-radius:7px 7px 4px 4px; box-shadow:inset 0 14px 0 -6px rgba(255,255,255,.18)}
+.bottle{animation:drop .5s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes drop{from{transform:translateY(-30px); opacity:0}to{transform:none; opacity:1}}
+
+/* summaries */
+.score-big{display:flex; gap:12px}
+.score-big > div{flex:1; border:2px solid var(--line); border-radius:8px; padding:14px; background:var(--card); text-align:center}
+.score-big .v{font-family:var(--display); font-size:48px; line-height:1; font-variant-numeric:tabular-nums}
+.score-big .pass-box{background:var(--hl); color:var(--hl-ink)}
+.score-big .shot-box .v{color:var(--soju)}
+.qlist{list-style:none; margin:0; padding:0; display:grid; gap:6px}
+.qlist li{display:grid; grid-template-columns:52px 1fr; gap:8px; align-items:baseline; font-size:15px}
+.tag{font-size:12px; font-weight:700; text-align:center; border-radius:4px; padding:1px 0}
+.tag.pass{background:var(--hl); color:var(--hl-ink)}
+.tag.fail{background:var(--soju); color:#fff}
+.rank{list-style:none; margin:0; padding:0; display:grid; gap:10px}
+.rank li{display:grid; grid-template-columns:44px 1fr auto; gap:12px; align-items:center; border:2px solid var(--line); border-radius:8px; background:var(--card); padding:12px 14px}
+.rank li:first-child{box-shadow:4px 4px 0 var(--line)}
+.rank .pos{font-family:var(--display); font-size:30px; line-height:1}
+.rank .nm{font-weight:700; font-size:18px; min-width:0}
+.rank .nm small{display:block; font-weight:500; font-size:13px; color:var(--ink-soft)}
+.rank .sc{text-align:right; font-variant-numeric:tabular-nums; font-weight:700}
+.rank .sc small{display:block; color:var(--soju); font-size:13px}
+.badge{display:inline-block; font-size:12px; font-weight:700; background:var(--soju); color:#fff; border-radius:4px; padding:1px 6px; margin-left:6px; vertical-align:2px}
+
+@media (prefers-reduced-motion: reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"></main>
+
+<script>
+/* ───────── 문제 데이터: [정답, 헷갈리는 선지 3개] ───────── */
+const GENRES = [
+  { id:'fes', name:'학회 상황', blurb:'우리끼리만 아는 그 장면', items:[
+    ['장표데이 제출 직전에 메일 쓰는 팀장','FES 지원서 제출 버튼 앞에서 떠는 신입','발표 5분 전에 PPT 고치는 발표자','마감 1분 전에 과제 올리는 복학생'],
+    ['사측 피드백 듣고 멘탈 나간 팀원','교수님께 과제 반려당한 조장','면접에서 압박 질문 받은 지원자','부장님께 깨지는 인턴'],
+    ['새벽 4시 학회실에서 엎드려 자는 신입','시험 전날 도서관에서 침 흘리며 자는 학생','회의 중에 졸다 걸린 팀원','밤샘 후 첫차에서 기절한 팀장'],
+    ['발표 중에 노트북이 꺼진 발표자','마이크 꺼진 줄 모르고 말하는 회장','노래방 클라이맥스에 마이크 꺼진 사람','화상회의 중 와이파이 끊긴 팀원'],
+    ['킥오프 자기소개에서 자기 이름 까먹은 신입','면접 첫 질문에 얼어버린 지원자','회식에서 갑자기 건배사 시킨 신입','소개팅 첫마디부터 말 더듬는 사람'],
+    ['리크루팅 면접에서 팔짱 낀 면접관','오디션 무대를 지켜보는 심사위원','발표 듣다 팔짱 낀 사측 임원','소개팅 상대를 스캔하는 사람'],
+    ['중간발표 Q&A에서 질문 폭탄 맞은 팀장','기자회견에서 질문 세례받는 연예인','명절에 친척들 질문 폭탄 맞는 취준생','수업 중 교수님께 지목당한 학생'],
+    ['회식 자리에서도 장표 얘기하는 팀장','데이트 중에 업무 전화 받는 직장인','MT 와서 노트북 펴는 학회원','술 취해서 발표 연습하는 팀원'],
+    ['폰트 하나로 30분째 싸우는 두 팀원','메뉴 하나로 30분째 싸우는 커플','리모컨 하나로 싸우는 남매','마지막 치킨 한 조각 두고 싸우는 친구'],
+    ['최종발표 끝나고 오열하는 팀장','수능 끝나고 오열하는 고3','전역하는 날 우는 군인','결승에서 지고 우는 축구 선수'],
+  ]},
+  { id:'daily', name:'일상 생활', blurb:'누구나 한 번쯤 겪은 그 순간', items:[
+    ['지옥철 문에 얼굴 낀 직장인','엘리베이터 문에 가방 낀 사람','만원 버스에서 손잡이 못 잡은 대학생','회전문에 갇힌 사람'],
+    ['배달 기다리며 현관 앞을 서성이는 자취생','택배 오나 창밖만 보는 사람','소개팅 상대 기다리는 사람','치킨 왔는데 젓가락이 없는 자취생'],
+    ['알람 5개 다 끄고 다시 잠든 대학생','수업 중에 고개가 툭 떨어진 학생','지하철에서 옆 사람 어깨에 기댄 직장인','눈뜨자마자 폰부터 보는 사람'],
+    ['헬스장 첫날 거울 셀카 찍는 사람','운동 다음 날 근육통으로 계단 못 내려가는 사람','인바디 결과 보고 충격받은 사람','다이어트 중 야식 앞에서 갈등하는 사람'],
+    ['엘리베이터에서 교수님 마주친 학생','엘리베이터에서 전 애인 마주친 사람','편의점에서 팀장님 마주친 신입','목욕탕에서 담임선생님 마주친 학생'],
+    ['미용실 다녀와서 우는 사람','거울 보며 앞머리 셀프로 자르는 사람','미용실 의자에서 잠든 손님','머리 감다 샴푸가 눈에 들어간 사람'],
+    ['비바람에 우산 뒤집힌 출근러','바람에 가발 날아간 아저씨','우산 없어서 편의점 앞에서 고민하는 사람','소나기에 쫄딱 젖어 뛰는 대학생'],
+    ['아메리카노 한 잔으로 6시간 버티는 카공족','도서관 자리 맡아놓고 사라진 사람','카페에서 콘센트 자리 찾아 헤매는 사람','PC방에서 밤새우는 사람'],
+    ['키오스크 앞에서 뒷사람 눈치 보는 사람','ATM 앞에서 비밀번호 까먹은 사람','셀프 계산대에서 바코드 안 찍히는 사람','자판기에 돈 먹힌 사람'],
+    ['샤워하다 온수 끊긴 사람','샤워하면서 콘서트 하는 사람','한겨울에 보일러 고장 난 자취생','머리 감다 물이 끊긴 사람'],
+  ]},
+  { id:'mt', name:'MT·술자리', blurb:'오늘 밤 여기서 일어날 일', items:[
+    ['술게임 걸려서 원샷하는 신입','건배사 하다 말 꼬인 회장','소주잔에 몰래 물 채우는 사람','벌칙으로 노래 부르는 선배'],
+    ['새벽 3시에 라면 끓이는 선배','다음 날 아침 해장 라면 먹는 사람','캠핑장에서 냄비 엎은 사람','컵라면에 물 너무 많이 부은 사람'],
+    ['거실 바닥에서 이불 없이 잠든 사람','화장실 앞에서 잠든 사람','신발 신은 채로 잠든 사람','버스에서 침 흘리며 자는 사람'],
+    ['바베큐 하다 고기 다 태운 총무','숯불이 안 붙어서 부채질하는 사람','장보다 예산 초과해서 우는 총무','고기 굽느라 한 점도 못 먹은 사람'],
+    ['진실게임에서 짝사랑 들킨 사람','롤링페이퍼 읽다 우는 사람','술 취해 고백하고 다음 날 이불킥하는 사람','몸으로 말해요에서 아무도 못 맞힌 사람'],
+    ['마피아 게임에서 억울하게 죽은 시민','법정에서 억울함을 호소하는 피고','술게임 룰 우기는 사람','범인으로 몰린 탐정'],
+    ['술 취해서 단톡방에 이상한 말 보낸 사람','새벽에 전 애인에게 "자니?" 보낸 사람','술 취해서 엄마랑 영상통화하는 사람','택시 기사님께 인생 얘기하는 취객'],
+    ['펜션 사장님께 시끄럽다고 혼나는 학회원들','층간소음 항의하러 올라온 아랫집','도서관에서 떠들다 쫓겨난 학생','기숙사 사감한테 걸린 학생'],
+    ['단체사진에서 혼자 눈 감은 사람','타이머 맞추고 단체사진에 뛰어드는 사람','졸업사진에서 혼자 웃긴 표정 짓는 사람','셀카봉 들고 각도 잡는 회장'],
+    ['다음 날 아침 숙취로 변기 붙잡은 사람','배멀미하는 사람','놀이기구 타고 내려와 휘청이는 사람','매운 거 먹고 우유 찾는 사람'],
+  ]},
+  { id:'love', name:'연애·썸', blurb:'MT 국룰, 놀림 주의', items:[
+    ['카톡 1이 안 사라져서 폰만 보는 사람','답장 보내기 전에 10번 고치는 사람','읽씹 당하고 폰 던진 사람','택배 배송조회 계속 새로고침하는 사람'],
+    ['소개팅에서 파스타 소스 튄 사람','데이트 중 이에 고춧가루 낀 사람','소개팅에서 체해서 표정 굳은 사람','첫 데이트에 계산서 보고 놀란 사람'],
+    ['고백하고 차인 직후 웃고 있는 사람','프러포즈하다 반지 떨어뜨린 사람','고백 받고 도망가는 사람','승부차기 실축한 축구 선수'],
+    ['전 애인 인스타 보다 좋아요 눌러버린 사람','짝사랑 프사를 확대해서 보는 사람','스토리 몰래 보다 들킨 사람','단톡방에 보낼 고백을 잘못 보낸 사람'],
+    ['계산대 앞에서 서로 눈치 보는 커플','회식 끝나고 계산 미루는 팀원들','더치페이 계산기 두드리는 친구들','마지막 한 입을 서로 양보하는 커플'],
+    ['썸 타는 사람 앞에서 넘어진 사람','시상식 계단에서 넘어진 배우','빙판길에서 미끄러진 출근러','버스 급정거에 넘어진 사람'],
+    ['커플 사이에 낀 솔로 친구','부모님 싸움 사이에 낀 자식','지하철에서 두 사람 사이에 낀 승객','언니 데이트에 따라온 동생'],
+    ['우산 하나 같이 쓰다 어깨 다 젖은 썸남','빗속에서 이별하는 드라마 주인공','우산 하나로 싸우는 형제','비 맞으며 택시 잡는 사람'],
+    ['기념일 까먹고 편의점 케이크 사 온 사람','생일 서프라이즈 하다 들킨 사람','케이크 들고 가다 넘어진 사람','촛불 끄다 앞머리 탄 사람'],
+    ['영화관에서 손잡을까 말까 고민하는 썸','공포영화 보다 팝콘 쏟은 사람','영화관에서 잠든 남자친구','영화관에서 폰 밝기 최대로 켠 사람'],
+  ]},
+  { id:'animal', name:'동물의 사생활', blurb:'동물이 사람처럼 산다면', items:[
+    ['출근길 지옥철에 낀 펭귄','엘리베이터 문에 목 낀 기린','만원 버스 탄 하마','회전문에 갇힌 고슴도치'],
+    ['시험 전날 벼락치기하는 부엉이','밤새 야근하는 박쥐','새벽까지 게임하는 너구리','도서관에서 졸고 있는 코알라'],
+    ['소개팅에서 포옹하려다 찌른 고슴도치','소개팅에서 방귀 뀐 스컹크','첫 데이트에 3시간 늦은 거북이','소개팅에서 체한 펠리컨'],
+    ['다이어트 포기하고 치킨 시킨 판다','헬스장 첫날 등록한 곰','볼에 과자 숨기다 걸린 햄스터','인바디 재고 충격받은 돼지'],
+    ['노래방에서 고음 지르는 닭','노래방에서 탬버린 치는 원숭이','샤워하며 노래하는 개구리','오디션 보는 앵무새'],
+    ['헬스장에서 데드리프트 하는 캥거루','복싱 시합 나간 캥거루','줄넘기하는 토끼','한 발로 요가하는 플라밍고'],
+    ['카페에서 노트북 하는 나무늘보','카공하다 잠든 코알라','키보드 위에 드러누운 고양이','카페 알바하는 문어'],
+    ['튜브 끼고 수영 배우는 오리','구명조끼 입은 물고기','다이빙하다 배치기한 펭귄','워터파크 슬라이드 타는 수달'],
+    ['꼬리 펼치고 셀카 찍는 공작새','거울 보며 갈기 손질하는 사자','바디프로필 찍는 고릴라','증명사진 찍는 미어캣'],
+    ['회의 중 배경에 숨어서 딴짓하는 카멜레온','회의 중 등껍질에 숨어 자는 거북이','발표 도중 도망간 다람쥐','회의에서 혼자 박수 치는 물개'],
+  ]},
+];
+
+/* ───────── 설정 ───────── */
+const DEFAULT_SETTINGS = { drawers:4, drawSec:4, answerSec:10, perTeam:5, handoffSec:1 };
+const SETTING_META = [
+  { key:'drawers',    label:'그리는 사람',     unit:'명', min:2, max:6 },
+  { key:'drawSec',    label:'1인당 그리는 시간', unit:'초', min:2, max:10 },
+  { key:'handoffSec', label:'펜 넘기는 시간',   unit:'초', min:0, max:3 },
+  { key:'answerSec',  label:'정답 고르는 시간', unit:'초', min:5, max:30 },
+  { key:'perTeam',    label:'팀당 문제 수',     unit:'개', min:1, max:10 },
+];
+const TEAM_MIN = 2, TEAM_MAX = 10, TEAM_NAME_MAX = 12;
+const READY_MS = 3000, TURN_MS = 1500, TICK_MS = 50;
+const SAVE_KEY = 'relay4-save-v1';
+const OPTION_LABELS = ['1','2','3','4'];
+
+/* ───────── 상태 ───────── */
+function freshState(){
+  return {
+    screen:'setup', settings:{...DEFAULT_SETTINGS},
+    teams:['1팀','2팀','3팀','4팀'].map(name => ({ name, genre:null, results:[] })),
+    teamIdx:0, qIdx:0, usedGenres:[], usedQ:[], current:null, pick:null, muted:false,
+  };
+}
+let state = freshState();
+let ui = { confirmQuit:false, landed:false };
+const setState = patch => { state = { ...state, ...patch }; };
+const patchTeam = (idx, patch) => state.teams.map((t, i) => i === idx ? { ...t, ...patch } : t);
+
+const $ = sel => document.querySelector(sel);
+const app = $('#app');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rand = n => Math.floor(Math.random() * n);
+const shuffle = arr => arr.map(v => [Math.random(), v]).sort((a, b) => a[0] - b[0]).map(p => p[1]);
+const genreOf = id => GENRES.find(g => g.id === id);
+const team = () => state.teams[state.teamIdx];
+
+/* ───────── 저장 (이 기기에서만, 새로고침 대비) ───────── */
+const RESUMABLE = { genre:'genre', keyword:'keyword', drawing:'keyword', turn:'keyword', answer:'keyword', result:'result', teamDone:'teamDone', final:'final' };
+function save(){
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) { /* 저장 불가 환경: 무시하고 진행 */ }
+}
+function loadSave(){
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    return (s && Array.isArray(s.teams) && RESUMABLE[s.screen]) ? s : null;
+  } catch (e) { return null; }
+}
+function clearSave(){ try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+
+/* ───────── 소리·진동·화면 켜짐 ───────── */
+let actx = null, wakeLock = null;
+function ensureAudio(){
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+  } catch (e) { actx = null; }
+}
+function beep(freq = 880, dur = 0.08, vol = 0.18, type = 'square', when = 0){
+  if (state.muted || !actx) return;
+  try {
+    const t = actx.currentTime + when, o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur + 0.02);
+  } catch (e) {}
+}
+const sfx = {
+  tick: () => beep(660, 0.05, 0.12),
+  go:   () => beep(1320, 0.18, 0.22),
+  pass: () => [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.16, 0.2, 'triangle', i * 0.09)),
+  fail: () => [392, 330, 262, 196].forEach((f, i) => beep(f, 0.22, 0.2, 'sawtooth', i * 0.12)),
+  land: () => beep(988, 0.25, 0.2, 'triangle'),
+};
+const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+async function keepAwake(){
+  try { if ('wakeLock' in navigator && !wakeLock) wakeLock = await navigator.wakeLock.request('screen'); }
+  catch (e) { wakeLock = null; }
+}
+
+/* ───────── 타이머 (일시정지 지원) ───────── */
+let timer = null;
+function startTimer(ms, onTick, onDone){
+  stopTimer();
+  const t = { ms, elapsed:0, last:Date.now(), paused:false, id:0 };
+  const loop = () => {
+    const now = Date.now();
+    if (!t.paused) t.elapsed += now - t.last;
+    t.last = now;
+    const left = Math.max(0, t.ms - t.elapsed);
+    onTick(left, Math.min(1, t.elapsed / t.ms));
+    if (left <= 0) { clearInterval(t.id); if (timer === t) timer = null; onDone(); }
+  };
+  t.id = setInterval(loop, TICK_MS);
+  timer = t;
+  loop();
+}
+function stopTimer(){ if (timer) { clearInterval(timer.id); timer = null; } }
+function togglePause(){
+  if (!timer) return;
+  timer.paused = !timer.paused;
+  const note = $('#pausedNote'), btn = $('#pauseBtn');
+  if (note) note.hidden = !timer.paused;
+  if (btn) btn.textContent = timer.paused ? '계속' : '일시정지';
+}
+
+/* ───────── 게임 흐름 ───────── */
+function startGame(){
+  const names = state.teams.map((t, i) => (t.name || '').trim() || `${i + 1}팀`);
+  ensureAudio(); keepAwake();
+  setState({ screen:'genre', teamIdx:0, qIdx:0, usedGenres:[], usedQ:[], current:null, pick:null,
+    teams: names.map(name => ({ name, genre:null, results:[] })) });
+  ui = { ...ui, landed:false };
+  render();
+}
+
+function chooseGenre(){
+  const prev = state.teamIdx > 0 ? state.teams[state.teamIdx - 1].genre : null;
+  let used = state.usedGenres;
+  let pool = GENRES.filter(g => !used.includes(g.id));
+  if (pool.length === 0) { used = []; pool = GENRES.filter(g => g.id !== prev); }
+  const pick = pool[rand(pool.length)];
+  return { pick, pool, used:[...used, pick.id] };
+}
+
+function runRoulette(){
+  const { pick, pool, used } = chooseGenre();
+  const nameEl = $('#spinName'), card = $('#spinCard');
+  const TOTAL = 18;
+  let step = 0, last = -1;
+  const next = () => {
+    step += 1;
+    if (step >= TOTAL) {
+      nameEl.textContent = pick.name;
+      card.classList.add('landed');
+      sfx.land(); buzz(80);
+      setState({ usedGenres:used, teams:patchTeam(state.teamIdx, { genre:pick.id }) });
+      ui = { ...ui, landed:true };
+      save();
+      setTimeout(render, 450);
+      return;
+    }
+    let i = rand(pool.length);
+    if (pool.length > 1 && i === last) i = (i + 1) % pool.length;
+    last = i;
+    nameEl.textContent = pool[i].name;
+    sfx.tick();
+    setTimeout(next, 50 + step * step * 1.4);
+  };
+  next();
+}
+
+function drawQuestion(excludeKey){
+  const g = genreOf(team().genre);
+  const keyOf = i => `${g.id}:${i}`;
+  let usedQ = state.usedQ;
+  let avail = g.items.map((_, i) => i).filter(i => !usedQ.includes(keyOf(i)) && keyOf(i) !== excludeKey);
+  if (avail.length === 0) {
+    usedQ = usedQ.filter(k => !k.startsWith(g.id + ':'));
+    avail = g.items.map((_, i) => i).filter(i => keyOf(i) !== excludeKey);
+  }
+  const idx = avail[rand(avail.length)];
+  const item = g.items[idx];
+  const current = { key:keyOf(idx), answer:item[0], options:shuffle(item) };
+  const withoutExcluded = excludeKey ? usedQ.filter(k => k !== excludeKey) : usedQ;
+  setState({ screen:'keyword', current, pick:null, usedQ:[...withoutExcluded, current.key] });
+  save();
+  render();
+}
+
+function startDrawing(){
+  ensureAudio(); keepAwake();
+  setState({ screen:'drawing' });
+  render();
+  const { drawers, drawSec, handoffSec } = state.settings;
+  const steps = [{ type:'ready', ms:READY_MS }];
+  for (let n = 1; n <= drawers; n++) {
+    steps.push({ type:'draw', who:n, ms:drawSec * 1000 });
+    if (n < drawers && handoffSec > 0) steps.push({ type:'pass', to:n + 1, ms:handoffSec * 1000 });
+  }
+  runStep(steps, 0);
+}
+
+function runStep(steps, i){
+  if (i >= steps.length) return showTurnAround();
+  const s = steps[i];
+  paintStep(s);
+  let lastSec = null;
+  startTimer(s.ms, (left, frac) => {
+    const sec = Math.ceil(left / 1000);
+    if (s.type === 'pass') return;
+    const num = $('#bigNum');
+    if (num && sec !== lastSec) {
+      num.textContent = s.type === 'ready' ? (sec || '') : sec;
+      num.classList.toggle('alarm', s.type === 'draw' && sec <= 1);
+      if (lastSec !== null && sec > 0) sfx.tick();
+      lastSec = sec;
+    }
+    if (s.type === 'draw') {
+      const fill = document.querySelector(`#pill${s.who} > i`);
+      if (fill) fill.style.transform = `scaleX(${frac})`;
+    }
+  }, () => {
+    if (s.type !== 'pass') { sfx.go(); buzz(120); }
+    if (s.type === 'draw') { const p = $(`#pill${s.who}`); if (p) p.classList.add('done'); }
+    runStep(steps, i + 1);
+  });
+}
+
+function showTurnAround(){
+  setState({ screen:'turn' });
+  render();
+  sfx.go(); buzz([80, 60, 80]);
+  startTimer(TURN_MS, () => {}, startAnswer);
+}
+
+function startAnswer(){
+  setState({ screen:'answer' });
+  render();
+  const total = state.settings.answerSec * 1000;
+  let lastSec = null;
+  startTimer(total, left => {
+    const sec = Math.ceil(left / 1000);
+    const bar = $('#ansBar'), num = $('#ansNum'), barBox = $('#ansBarBox');
+    if (bar) bar.style.transform = `scaleX(${left / total})`;
+    if (num && sec !== lastSec) {
+      num.textContent = sec;
+      const alarm = sec <= 3;
+      num.classList.toggle('alarm', alarm);
+      if (barBox) barBox.classList.toggle('alarm', alarm);
+      if (alarm && sec > 0 && lastSec !== null) sfx.tick();
+      lastSec = sec;
+    }
+  }, () => finishQuestion(null));
+}
+
+function finishQuestion(pickIdx){
+  stopTimer();
+  const c = state.current;
+  const picked = pickIdx === null ? null : c.options[pickIdx];
+  const passed = picked === c.answer;
+  const result = { answer:c.answer, picked, passed, timeout:pickIdx === null };
+  setState({ screen:'result', pick:pickIdx, teams:patchTeam(state.teamIdx, { results:[...team().results, result] }) });
+  save();
+  render();
+  passed ? sfx.pass() : sfx.fail();
+  buzz(passed ? 100 : [200, 80, 200]);
+}
+
+function nextAfterResult(){
+  if (state.qIdx + 1 < state.settings.perTeam) {
+    setState({ qIdx:state.qIdx + 1 });
+    drawQuestion();
+  } else {
+    setState({ screen:'teamDone' }); save(); render();
+  }
+}
+
+function nextTeam(){
+  if (state.teamIdx + 1 < state.teams.length) {
+    setState({ screen:'genre', teamIdx:state.teamIdx + 1, qIdx:0, current:null, pick:null });
+    ui = { ...ui, landed:false };
+  } else {
+    setState({ screen:'final' });
+  }
+  save(); render();
+}
+
+function quitToSetup(){
+  stopTimer(); clearSave();
+  const keep = { settings:state.settings, muted:state.muted, teams:state.teams.map(t => ({ name:t.name, genre:null, results:[] })) };
+  state = { ...freshState(), ...keep };
+  ui = { confirmQuit:false, landed:false };
+  render();
+}
+
+/* ───────── 화면 ───────── */
+function topbar(){
+  const t = team(), g = t.genre ? genreOf(t.genre) : null;
+  const per = state.settings.perTeam;
+  const dots = Array.from({ length:per }, (_, i) => {
+    const r = t.results[i];
+    const cls = r ? (r.passed ? 'pass' : 'fail') : (i === state.qIdx && state.screen !== 'teamDone' ? 'now' : '');
+    return `<i class="${cls}"></i>`;
+  }).join('');
+  const confirm = ui.confirmQuit ? `
+    <div class="confirm" role="alertdialog" aria-label="게임 끝내기 확인">
+      <p>게임을 끝내고 처음 화면으로 갈까요? 점수는 사라져요.</p>
+      <button class="tiny-btn" data-act="quitYes">끝내기</button>
+      <button class="tiny-btn" data-act="quitNo">계속하기</button>
+    </div>` : '';
+  return `
+    <header class="topbar">
+      <span class="chip">${esc(t.name)}</span>
+      ${g ? `<span class="chip genre">${esc(g.name)}</span>` : ''}
+      <span class="dots" aria-label="문제 진행">${dots}</span>
+      <span class="spacer"></span>
+      <button class="tiny-btn" data-act="mute" aria-pressed="${state.muted}">${state.muted ? '소리 켜기' : '소리 끄기'}</button>
+      <button class="tiny-btn" data-act="quit">처음으로</button>
+    </header>${confirm}`;
+}
+
+function viewSetup(){
+  const saved = loadSave();
+  const teams = state.teams.map((t, i) => `
+    <div class="team-row">
+      <input id="team-${i}" data-team="${i}" maxlength="${TEAM_NAME_MAX}" value="${esc(t.name)}" aria-label="${i + 1}번째 팀 이름">
+      <button class="icon-btn" data-act="delTeam" data-i="${i}" aria-label="${esc(t.name)} 삭제" ${state.teams.length <= TEAM_MIN ? 'disabled' : ''}>×</button>
+    </div>`).join('');
+  const sets = SETTING_META.map(m => `
+    <div class="set-row">
+      <span>${m.label}</span>
+      <span class="stepper">
+        <button data-act="dec" data-k="${m.key}" aria-label="${m.label} 줄이기">−</button>
+        <output id="set-${m.key}">${state.settings[m.key]}${m.unit}</output>
+        <button data-act="inc" data-k="${m.key}" aria-label="${m.label} 늘리기">+</button>
+      </span>
+    </div>`).join('');
+  const s = state.settings;
+  return `
+    <section class="hero">
+      <span class="eyebrow">FES 26-2 MT · 팀 대항 그림 릴레이</span>
+      <h1><mark>4초</mark><br>릴레이</h1>
+      <p>${s.drawers}명이 ${s.drawSec}초씩 이어 그리고, 마지막 한 명이 ${s.answerSec}초 안에 4지선다로 맞힌다. 틀리면 팀 전원 소주 한 잔.</p>
+    </section>
+    ${saved ? `<div class="card" style="display:grid;gap:10px">
+      <p><strong>하던 게임이 있어요.</strong> <span class="hint">${esc(saved.teams[saved.teamIdx]?.name || '')} 차례부터 이어서 할 수 있어요.</span></p>
+      <div class="row"><button class="btn" data-act="resume">이어하기</button><button class="btn ghost" data-act="discard">지우고 새로 하기</button></div>
+    </div>` : ''}
+    <section class="card">
+      <div class="section-title"><h3>이렇게 진행돼요</h3></div>
+      <ol class="rules">
+        <li><span>팀마다 장르 5개 중 하나가 랜덤으로 정해져요. 앞 팀들이 한 장르는 빠져요.</span></li>
+        <li><span>맞히는 사람이 뒤돈 상태에서 <b>문제 공개</b>를 누르고, 그리는 사람들만 제시어를 봐요.</span></li>
+        <li><span><b>그리기 시작</b>을 누르면 1번부터 ${s.drawSec}초씩 한 종이에 이어 그려요. 삐 소리가 나면 다음 사람.</span></li>
+        <li><span>다 그리면 맞히는 사람이 돌아서고, 선지 4개 중 하나를 ${s.answerSec}초 안에 골라요.</span></li>
+        <li class="penalty"><span>틀리거나 시간이 끝나면 팀 전원 소주 한 잔.</span></li>
+      </ol>
+    </section>
+    <section class="card">
+      <div class="section-title"><h3>팀</h3><span class="hint">${state.teams.length}팀 · 팀당 ${s.perTeam}문제</span></div>
+      <div class="teams">${teams}</div>
+      <div style="margin-top:10px"><button class="btn ghost" data-act="addTeam" ${state.teams.length >= TEAM_MAX ? 'disabled' : ''}>+ 팀 추가</button></div>
+    </section>
+    <section class="card">
+      <div class="section-title"><h3>규칙 조정</h3></div>
+      <div class="settings">${sets}</div>
+    </section>
+    <button class="btn" data-act="start">게임 시작</button>`;
+}
+
+function viewGenre(){
+  const t = team(), g = t.genre ? genreOf(t.genre) : null;
+  const usedOthers = state.usedGenres.filter(id => id !== t.genre);
+  const usedChips = usedOthers.length && !ui.landed
+    ? `<div class="used" aria-label="이미 나온 장르">${usedOthers.map(id => `<span>${esc(genreOf(id).name)}</span>`).join('')}</div>` : '';
+  if (!ui.landed || !g) {
+    return `${topbar()}
+      <section class="roulette">
+        <span class="eyebrow">이번 차례</span>
+        <h2 class="team-name">${esc(t.name)}</h2>
+        <div class="spin-card" id="spinCard"><div class="name" id="spinName">장르 뽑는 중</div><div class="blurb">&nbsp;</div></div>
+        ${usedChips}
+      </section>`;
+  }
+  return `${topbar()}
+    <section class="roulette">
+      <span class="eyebrow">이번 차례</span>
+      <h2 class="team-name">${esc(t.name)}</h2>
+      <div class="spin-card landed"><div class="name">${esc(g.name)}</div><div class="blurb">${esc(g.blurb)}</div></div>
+      <p class="hint">맞히는 사람을 정하고, 그 사람이 뒤돌면 눌러요.</p>
+      <button class="btn" data-act="reveal">1번 문제 공개</button>
+    </section>`;
+}
+
+function viewKeyword(){
+  const s = state.settings;
+  return `${topbar()}
+    <div class="warn">맞히는 사람은 화면 보지 마세요</div>
+    <section class="keyword-card">
+      <span class="eyebrow">${state.qIdx + 1}번 문제 · 제시어</span>
+      <div class="k">${esc(state.current.answer)}</div>
+    </section>
+    <button class="btn" data-act="draw">그리기 시작 (${s.drawers}명 × ${s.drawSec}초)</button>
+    <button class="btn ghost" data-act="reroll">다른 문제로 바꾸기</button>`;
+}
+
+function viewDrawing(){
+  const n = state.settings.drawers;
+  const pills = Array.from({ length:n }, (_, i) => `<div class="pill" id="pill${i + 1}"><i></i></div>`).join('');
+  const labels = Array.from({ length:n }, (_, i) => `<span>${i + 1}번</span>`).join('');
+  return `${topbar()}
+    <section class="stage">
+      <div class="mini-keyword">제시어: ${esc(state.current.answer)}</div>
+      <div id="stepArea"></div>
+      <div class="pills">${pills}</div>
+      <div class="pill-labels">${labels}</div>
+      <p class="paused-note" id="pausedNote" hidden>일시정지 중</p>
+      <button class="btn ghost" id="pauseBtn" data-act="pause">일시정지</button>
+    </section>`;
+}
+
+function paintStep(s){
+  const area = $('#stepArea');
+  if (!area) return;
+  if (s.type === 'ready') area.innerHTML = `<div class="who">1번, 펜 들고 준비</div><div class="big-num" id="bigNum">3</div>`;
+  if (s.type === 'draw')  area.innerHTML = `<div class="who">${s.who}번 그리는 중</div><div class="big-num" id="bigNum">${state.settings.drawSec}</div>`;
+  if (s.type === 'pass')  area.innerHTML = `<div class="handoff">${s.to}번에게<br>펜 넘겨!<small>바로 이어서 시작해요</small></div>`;
+}
+
+function viewTurn(){
+  return `${topbar()}
+    <section class="stage">
+      <div class="handoff">그리기 끝!<br>맞히는 사람<br>돌아봐!</div>
+    </section>`;
+}
+
+function viewAnswer(){
+  const opts = state.current.options.map((o, i) => `
+    <button class="opt" data-act="pick" data-i="${i}"><b>${OPTION_LABELS[i]}</b><span>${esc(o)}</span></button>`).join('');
+  return `${topbar()}
+    <div class="answer-head">
+      <h2>이 그림은<br>무엇일까?</h2>
+      <div class="num" id="ansNum">${state.settings.answerSec}</div>
+    </div>
+    <div class="bar" id="ansBarBox"><i id="ansBar"></i></div>
+    <section class="options">${opts}</section>`;
+}
+
+function viewResult(){
+  const r = team().results[team().results.length - 1];
+  const isLast = state.qIdx + 1 >= state.settings.perTeam;
+  const shotsPeople = state.settings.drawers + 1;
+  const opts = state.current.options.map((o, i) => {
+    const cls = o === state.current.answer ? 'correct' : (i === state.pick ? 'wrong' : '');
+    return `<button class="opt ${cls}" disabled><b>${OPTION_LABELS[i]}</b><span>${esc(o)}</span></button>`;
+  }).join('');
+  const head = r.passed
+    ? `<div class="stamp pass">통과</div><p class="verdict">정답! 이번 잔은 넘어갑니다</p>`
+    : `<div class="stamp fail">${r.timeout ? '시간 끝' : '땡'}</div>
+       <p class="verdict">팀 전원 소주 한 잔</p>
+       <div class="bottles" aria-label="소주 ${shotsPeople}잔">${Array.from({ length:shotsPeople }, (_, i) => `<span class="bottle" style="animation-delay:${i * 80}ms"></span>`).join('')}</div>`;
+  return `${topbar()}
+    <section class="result">${head}</section>
+    <section class="options" aria-label="정답 확인">${opts}</section>
+    <p class="hint" style="text-align:center">${isLast ? '이 팀의 마지막 문제였어요.' : '다음 맞히는 사람이 뒤돌면 눌러요.'}</p>
+    <button class="btn" data-act="next">${isLast ? `${esc(team().name)} 결과 보기` : `${state.qIdx + 2}번 문제 공개`}</button>`;
+}
+
+function teamScore(t){
+  const pass = t.results.filter(r => r.passed).length;
+  return { pass, shots:t.results.length - pass };
+}
+
+function viewTeamDone(){
+  const t = team(), sc = teamScore(t);
+  const last = state.teamIdx + 1 >= state.teams.length;
+  const list = t.results.map(r => `
+    <li><span class="tag ${r.passed ? 'pass' : 'fail'}">${r.passed ? '통과' : '한 잔'}</span><span>${esc(r.answer)}</span></li>`).join('');
+  return `${topbar()}
+    <section class="hero" style="padding-top:0">
+      <span class="eyebrow">${esc(genreOf(t.genre).name)} 장르 끝</span>
+      <h1 style="font-size:clamp(40px,12vw,60px)">${esc(t.name)} 결과</h1>
+    </section>
+    <div class="score-big">
+      <div class="pass-box"><div class="v">${sc.pass}/${t.results.length}</div><span>통과</span></div>
+      <div class="shot-box"><div class="v">${sc.shots}잔</div><span>1인당 마신 소주</span></div>
+    </div>
+    <section class="card"><ul class="qlist">${list}</ul></section>
+    <button class="btn" data-act="nextTeam">${last ? '최종 결과 보기' : `다음 팀: ${esc(state.teams[state.teamIdx + 1].name)}`}</button>`;
+}
+
+function viewFinal(){
+  const rows = state.teams.map(t => ({ t, ...teamScore(t) }));
+  const maxShots = Math.max(...rows.map(r => r.shots));
+  const ranked = [...rows].sort((a, b) => b.pass - a.pass || a.shots - b.shots);
+  const totalShots = rows.reduce((sum, r) => sum + r.shots * (state.settings.drawers + 1), 0);
+  const list = ranked.map((r, i) => `
+    <li>
+      <span class="pos">${i + 1}</span>
+      <span class="nm">${esc(r.t.name)}${maxShots > 0 && r.shots === maxShots ? '<span class="badge">오늘의 주당</span>' : ''}
+        <small>${r.t.genre ? esc(genreOf(r.t.genre).name) : ''}</small></span>
+      <span class="sc">${r.pass}문제 통과<small>${r.shots}잔씩</small></span>
+    </li>`).join('');
+  return `
+    <section class="hero">
+      <span class="eyebrow">최종 결과</span>
+      <h1>${esc(ranked[0].t.name)}<br><mark>우승</mark></h1>
+      <p>오늘 이 게임으로 비운 소주는 모두 <strong>${totalShots}잔</strong>이에요.</p>
+    </section>
+    <ol class="rank">${list}</ol>
+    <button class="btn" data-act="restart">같은 팀으로 다시 하기</button>`;
+}
+
+const VIEWS = { setup:viewSetup, genre:viewGenre, keyword:viewKeyword, drawing:viewDrawing, turn:viewTurn, answer:viewAnswer, result:viewResult, teamDone:viewTeamDone, final:viewFinal };
+
+function render(){
+  if (state.screen === 'genre' && !team().genre) ui = { ...ui, landed:false };
+  app.innerHTML = VIEWS[state.screen]();
+  window.scrollTo(0, 0);
+  if (state.screen === 'genre' && !ui.landed) runRoulette();
+}
+
+/* ───────── 입력 처리 ───────── */
+function clampSetting(key, delta){
+  const m = SETTING_META.find(x => x.key === key);
+  const v = Math.min(m.max, Math.max(m.min, state.settings[key] + delta));
+  setState({ settings:{ ...state.settings, [key]:v } });
+  render();
+}
+
+const ACTIONS = {
+  start: startGame,
+  addTeam: () => { if (state.teams.length < TEAM_MAX) { setState({ teams:[...state.teams, { name:`${state.teams.length + 1}팀`, genre:null, results:[] }] }); render(); } },
+  delTeam: el => { if (state.teams.length > TEAM_MIN) { const i = +el.dataset.i; setState({ teams:state.teams.filter((_, j) => j !== i) }); render(); } },
+  inc: el => clampSetting(el.dataset.k, 1),
+  dec: el => clampSetting(el.dataset.k, -1),
+  resume: () => {
+    const s = loadSave(); if (!s) return render();
+    state = { ...freshState(), ...s, screen:RESUMABLE[s.screen] };
+    ui = { confirmQuit:false, landed:true };
+    ensureAudio(); keepAwake(); render();
+  },
+  discard: () => { clearSave(); render(); },
+  reveal: () => drawQuestion(),
+  reroll: () => drawQuestion(state.current.key),
+  draw: startDrawing,
+  pause: togglePause,
+  pick: el => { if (state.screen === 'answer') finishQuestion(+el.dataset.i); },
+  next: nextAfterResult,
+  nextTeam,
+  restart: () => { clearSave(); startGame(); },
+  mute: () => {
+    setState({ muted:!state.muted }); save();
+    const b = document.querySelector('[data-act="mute"]');
+    if (b) { b.textContent = state.muted ? '소리 켜기' : '소리 끄기'; b.setAttribute('aria-pressed', state.muted); }
+  },
+  quit: () => { ui = { ...ui, confirmQuit:true }; if (timer && !timer.paused) togglePause(); rerenderTopOnly(); },
+  quitYes: quitToSetup,
+  quitNo: () => { ui = { ...ui, confirmQuit:false }; if (timer && timer.paused) togglePause(); rerenderTopOnly(); },
+};
+
+function rerenderTopOnly(){
+  const old = app.querySelector('.confirm');
+  if (old) old.remove();
+  if (ui.confirmQuit) app.querySelector('.topbar').insertAdjacentHTML('afterend', topbar().split('</header>')[1]);
+}
+
+app.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (!el || el.disabled) return;
+  const fn = ACTIONS[el.dataset.act];
+  if (fn) fn(el);
+});
+app.addEventListener('input', e => {
+  const i = e.target.dataset.team;
+  if (i === undefined) return;
+  setState({ teams:patchTeam(+i, { name:e.target.value.slice(0, TEAM_NAME_MAX) }) });
+});
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && wakeLock === null && state.screen !== 'setup') keepAwake(); });
+
+/* ───────── 시작 ───────── */
+function boot(data){
+  const s = data && data.state;
+  if (s && Array.isArray(s.teams) && VIEWS[s.screen]) {
+    state = { ...freshState(), ...s, screen:RESUMABLE[s.screen] || 'setup' };
+    ui = { confirmQuit:false, landed:true };
+  }
+  render();
+}
+window.claude?.hot?.snapshot?.(() => ({ state }));
+window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
+</script>
+</body>
+</html>
